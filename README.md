@@ -4,6 +4,27 @@ Orbit is a static single-page application (SPA) behind a read-only nginx reverse
 
 Orbit has no backend code, no database, and no server-side state beyond a permanent, content-addressed browser cache of immutable manifest details.
 
+![Orbit Repository View](orbit-registry-ui.repo.png)
+
+## Why Digest-Centric?
+
+Traditional registry UIs are **tag-centric**: every single tag creates a separate row in the table. In modern CI/CD pipelines where a single build is tagged with multiple references (e.g. semantic version `1.2.7`, timestamped build `1.2.7-20260920-0900`, and floating branch tag `latest`), tag-centric views create several problems:
+
+- **Redundant Clutter**: The same underlying container image is listed multiple times as duplicate rows, rapidly drowning out actual build history.
+- **Misleading Storage & Counts**: Displaying sizes and rows per tag misleads operators into seeing redundant images, obscuring what is genuinely stored on the registry.
+- **Obscured Tag Relationships**: Operators cannot immediately see which tags point to the exact same artifact digest without cross-referencing hashes manually.
+
+**Orbit is built from the ground up to be digest-centric**:
+
+- **One Row Per Manifest Digest**: Every distinct artifact (single-arch manifest or multi-arch index) appears exactly once in the table.
+- **Tags Grouped as Badges**: All tags pointing to a digest appear together on that row (`[1.2.7]`, `[1.2.7-20260920-0900]`, `[latest]`), making tag-to-digest mapping immediately obvious.
+- **True Image Build Times**: Extracted directly from the image configuration blob (`created`), showing when the image was actually compiled rather than missing or ambiguous push times.
+- **Accurate Stored Sizes**: Displays the compressed size of layers and config as stored in the registry, avoiding double-counting in table views.
+- **First-Class Multi-Arch Visibility**: Platforms (e.g. `amd64`, `arm64/v8`) are listed directly on each row, with attestation manifests cleanly filtered out.
+- **Strict Error Transparency**: Tags that fail to resolve (e.g. 404s or network drops) are tracked explicitly as failures and never silently merged into fake artifact rows.
+
+---
+
 ## Features
 
 - **Digest-Centric Table**: One row per manifest digest (including multi-arch OCI index / Docker manifest lists), avoiding duplicate rows for multiple tags pointing to the same artifact.
