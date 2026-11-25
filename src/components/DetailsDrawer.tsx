@@ -18,6 +18,7 @@ import {
   ArtifactDetails,
   PlatformDetails,
   PlatformExtendedDetails,
+  INDEX_TYPES,
   fetchPlatformExtendedDetails,
 } from '../api/registry';
 import {
@@ -45,20 +46,34 @@ export function DetailsDrawer({ repo, artifact, details, onClose }: DetailsDrawe
   const [selectedPlatformIndex, setSelectedPlatformIndex] = useState(0);
   const [platformExtended, setPlatformExtended] = useState<PlatformExtendedDetails | null>(null);
   const [loadingExtended, setLoadingExtended] = useState(false);
+  const [extendedError, setExtendedError] = useState<string | null>(null);
   const [copiedDigest, setCopiedDigest] = useState(false);
   const [copiedPullCmd, setCopiedPullCmd] = useState(false);
 
   const platforms: PlatformDetails[] = details?.platforms ?? [];
   const currentPlatform = platforms[selectedPlatformIndex];
 
+  useEffect(() => {
+    setSelectedPlatformIndex(0);
+  }, [artifact.digest]);
+
   // Fetch build history and layer details when drawer opens or platform changes
   useEffect(() => {
+    const isKnownIndex = details?.isIndex ?? INDEX_TYPES.has(artifact.mediaType);
+    if (isKnownIndex && !currentPlatform) {
+      setLoadingExtended(false);
+      setPlatformExtended(null);
+      setExtendedError(null);
+      return;
+    }
+
     const targetDigest = currentPlatform?.digest ?? artifact.digest;
     if (!targetDigest) return;
 
     let cancelled = false;
     setLoadingExtended(true);
     setPlatformExtended(null);
+    setExtendedError(null);
 
     fetchPlatformExtendedDetails(repo, targetDigest)
       .then((ext) => {
@@ -67,7 +82,9 @@ export function DetailsDrawer({ repo, artifact, details, onClose }: DetailsDrawe
         }
       })
       .catch((err) => {
-        console.error('Failed to load platform history:', err);
+        if (!cancelled) {
+          setExtendedError(err instanceof Error ? err.message : 'Failed to load platform details.');
+        }
       })
       .finally(() => {
         if (!cancelled) setLoadingExtended(false);
@@ -76,7 +93,7 @@ export function DetailsDrawer({ repo, artifact, details, onClose }: DetailsDrawe
     return () => {
       cancelled = true;
     };
-  }, [repo, currentPlatform?.digest, artifact.digest]);
+  }, [repo, currentPlatform?.digest, artifact.digest, artifact.mediaType, details?.isIndex]);
 
   // Handle ESC key to close
   useEffect(() => {
@@ -235,7 +252,7 @@ export function DetailsDrawer({ repo, artifact, details, onClose }: DetailsDrawe
                         )
                       }
                       className="group flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-950/50 hover:bg-indigo-900/60 border border-indigo-800/50 text-indigo-200 text-xs font-mono transition-colors"
-                      title={`Click to copy: docker pull ${buildPullCommand(config.registryPublicUrl, repo, t)}`}
+                      title={`Click to copy: ${buildPullCommand(config.registryPublicUrl, repo, t)}`}
                     >
                       <span>{t}</span>
                       <Copy className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
@@ -382,7 +399,15 @@ export function DetailsDrawer({ repo, artifact, details, onClose }: DetailsDrawe
                     <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
                     <span>Loading image config blob and history...</span>
                   </div>
-                ) : !platformExtended || platformExtended.history.length === 0 ? (
+                ) : extendedError ? (
+                  <div className="p-4 text-xs text-rose-300 bg-rose-950/20 rounded-lg border border-rose-800/40">
+                    Failed to load build history and layers: {extendedError}
+                  </div>
+                ) : !platformExtended ? (
+                  <div className="p-4 text-xs text-slate-500 italic bg-slate-950/20 rounded-lg border border-slate-800/40">
+                    {details ? 'No platform manifest available for inspection.' : 'Waiting for platform details to load...'}
+                  </div>
+                ) : platformExtended.history.length === 0 ? (
                   <div className="p-4 text-xs text-slate-500 italic bg-slate-950/20 rounded-lg border border-slate-800/40">
                     No history array found in the image config blob.
                   </div>
