@@ -23,6 +23,14 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     refreshStats();
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   const handleClear = () => {
     const count = clearDetailCache();
     refreshStats();
@@ -124,8 +132,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 <span className="text-indigo-300">{config.registryPublicUrl || '(same origin)'}</span>
               </div>
               <div className="flex items-center justify-between p-2.5 bg-slate-950/40 rounded border border-slate-800/60">
-                <span className="text-slate-400 font-sans">Proxy Mode</span>
-                <span className="text-emerald-400">Mode A (Pass-through Basic Auth)</span>
+                <span className="text-slate-400 font-sans">Proxy Auth</span>
+                <span className="text-emerald-400">Configured in nginx (Pass-through / Injected)</span>
               </div>
               <div className="flex items-center justify-between p-2.5 bg-slate-950/40 rounded border border-slate-800/60">
                 <span className="text-slate-400 font-sans">API Endpoint</span>

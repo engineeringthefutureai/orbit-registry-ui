@@ -164,8 +164,16 @@ export function CatalogPage({ onSelectRepo }: CatalogPageProps) {
             return (
               <div
                 key={repo}
+                role="button"
+                tabIndex={0}
                 onClick={() => onSelectRepo(repo)}
-                className="group relative p-4 rounded-xl border border-slate-800 hover:border-indigo-600/50 bg-slate-900/50 hover:bg-slate-900/80 transition-all duration-150 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectRepo(repo);
+                  }
+                }}
+                className="group relative p-4 rounded-xl border border-slate-800 hover:border-indigo-600/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 bg-slate-900/50 hover:bg-slate-900/80 transition-all duration-150 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">

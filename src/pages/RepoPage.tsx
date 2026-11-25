@@ -24,6 +24,7 @@ interface RepoPageProps {
 export function RepoPage({ repoName, onBack }: RepoPageProps) {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [detailsMap, setDetailsMap] = useState<Map<string, ArtifactDetails>>(new Map());
+  const [detailErrors, setDetailErrors] = useState<Map<string, string>>(new Map());
   const [failures, setFailures] = useState<TagFailure[]>([]);
   const [totalTagsCount, setTotalTagsCount] = useState(0);
 
@@ -32,24 +33,25 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [statusCode, setStatusCode] = useState<number | null>(null);
 
-  // Keep track of active fetch cancellation
-  const cancelRef = useRef(false);
+  // Keep track of the latest request so stale responses cannot overwrite newer state
+  const requestIdRef = useRef(0);
 
   const loadRepositoryData = useCallback(async () => {
-    cancelRef.current = false;
+    const requestId = ++requestIdRef.current;
     setLoadingListing(true);
     setLoadingDetails(false);
     setError(null);
     setStatusCode(null);
     setArtifacts([]);
     setDetailsMap(new Map());
+    setDetailErrors(new Map());
     setFailures([]);
     setTotalTagsCount(0);
 
     try {
       // 1. Resolve tags to digest groups and failures
       const listing = await listArtifacts(repoName);
-      if (cancelRef.current) return;
+      if (requestIdRef.current !== requestId) return;
 
       const totalTags =
         listing.artifacts.reduce((acc, a) => acc + a.tags.length, 0) + listing.failures.length;
@@ -67,7 +69,7 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
           repoName,
           listing.artifacts,
           (details) => {
-            if (!cancelRef.current) {
+            if (requestIdRef.current === requestId) {
               setDetailsMap((prev) => {
                 const next = new Map(prev);
                 next.set(details.digest, details);
@@ -76,16 +78,23 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
             }
           },
           (digest, err) => {
-            console.error(`Failed to load details for digest ${digest}:`, err);
+            if (requestIdRef.current === requestId) {
+              const message = err instanceof Error ? err.message : 'Failed to load details';
+              setDetailErrors((prev) => {
+                const next = new Map(prev);
+                next.set(digest, message);
+                return next;
+              });
+            }
           },
         ).finally(() => {
-          if (!cancelRef.current) {
+          if (requestIdRef.current === requestId) {
             setLoadingDetails(false);
           }
         });
       }
     } catch (err) {
-      if (cancelRef.current) return;
+      if (requestIdRef.current !== requestId) return;
       setLoadingListing(false);
       if (err instanceof RegistryError) {
         setStatusCode(err.status);
@@ -105,7 +114,7 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
   useEffect(() => {
     loadRepositoryData();
     return () => {
-      cancelRef.current = true;
+      requestIdRef.current++;
     };
   }, [loadRepositoryData]);
 
@@ -181,6 +190,7 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
           repo={repoName}
           artifacts={artifacts}
           detailsMap={detailsMap}
+          detailErrors={detailErrors}
           failures={failures}
           loadingDetails={loadingDetails}
           totalTagsCount={totalTagsCount}
