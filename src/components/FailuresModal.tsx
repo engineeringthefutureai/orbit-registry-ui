@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { X, AlertTriangle, HelpCircle } from 'lucide-react';
 import { TagFailure } from '../api/registry';
 
@@ -8,6 +9,14 @@ interface FailuresModalProps {
 }
 
 export function FailuresModal({ failures, repository, onClose }: FailuresModalProps) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
       <div
