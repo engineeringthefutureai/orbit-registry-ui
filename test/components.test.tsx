@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { ArtifactTable } from '../src/components/ArtifactTable';
+import { DetailsDrawer } from '../src/components/DetailsDrawer';
+import { FailuresModal } from '../src/components/FailuresModal';
 import { SettingsModal } from '../src/components/SettingsModal';
 import { ToastProvider } from '../src/context/ToastContext';
 import { ConfigProvider } from '../src/context/ConfigContext';
+import * as registry from '../src/api/registry';
 import { Artifact, ArtifactDetails, TagFailure } from '../src/api/registry';
 
 vi.mock('../src/api/config', () => ({
@@ -177,5 +180,63 @@ describe('UI Components', () => {
 
     fireEvent.click(screen.getByText('Clear Cache'));
     expect(screen.getByText('Cleared')).toBeDefined();
+  });
+
+  it('shows unavailable state in ArtifactTable when detailErrors has an entry', async () => {
+    const detailErrors = new Map<string, string>([
+      ['sha256:ccfe53fadeadbeef12345678', '404 on manifest'],
+      ['sha256:80af7318deadbeef12345678', 'network error'],
+    ]);
+
+    await renderWithProviders(
+      <ArtifactTable
+        repo="agy/antigravity-daemon"
+        artifacts={mockArtifacts}
+        detailsMap={mockDetailsMap}
+        detailErrors={detailErrors}
+        failures={[]}
+        loadingDetails={false}
+        totalTagsCount={9}
+      />,
+    );
+
+    expect(screen.getAllByText('unavailable')).toHaveLength(2);
+    const builtSortBtn = screen.getByText('Built').closest('button');
+    expect(builtSortBtn?.hasAttribute('disabled')).toBe(false);
+  });
+
+  it('closes FailuresModal and SettingsModal on Escape key', async () => {
+    const onCloseFailures = vi.fn();
+    await renderWithProviders(
+      <FailuresModal failures={mockFailures} repository="agy/app" onClose={onCloseFailures} />,
+    );
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onCloseFailures).toHaveBeenCalledTimes(1);
+
+    const onCloseSettings = vi.fn();
+    await renderWithProviders(<SettingsModal onClose={onCloseSettings} />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onCloseSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders error state in DetailsDrawer when fetchPlatformExtendedDetails fails and avoids duplicate docker pull tooltip', async () => {
+    vi.spyOn(registry, 'fetchPlatformExtendedDetails').mockRejectedValueOnce(
+      new Error('401 on config blob'),
+    );
+
+    await renderWithProviders(
+      <DetailsDrawer
+        repo="agy/antigravity-daemon"
+        artifact={mockArtifacts[0]}
+        details={mockDetailsMap.get(mockArtifacts[0].digest)}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText(/Failed to load build history and layers: 401 on config blob/)).toBeDefined();
+    const tagBtn = screen.getByText('1.2.7').closest('button');
+    expect(tagBtn?.getAttribute('title')).toBe(
+      'Click to copy: docker pull test.registry.local:5000/agy/antigravity-daemon:1.2.7',
+    );
   });
 });
