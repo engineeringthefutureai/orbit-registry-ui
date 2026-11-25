@@ -24,6 +24,7 @@ interface RepoPageProps {
 export function RepoPage({ repoName, onBack }: RepoPageProps) {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [detailsMap, setDetailsMap] = useState<Map<string, ArtifactDetails>>(new Map());
+  const [detailErrors, setDetailErrors] = useState<Map<string, string>>(new Map());
   const [failures, setFailures] = useState<TagFailure[]>([]);
   const [totalTagsCount, setTotalTagsCount] = useState(0);
 
@@ -43,6 +44,7 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
     setStatusCode(null);
     setArtifacts([]);
     setDetailsMap(new Map());
+    setDetailErrors(new Map());
     setFailures([]);
     setTotalTagsCount(0);
 
@@ -76,7 +78,14 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
             }
           },
           (digest, err) => {
-            console.error(`Failed to load details for digest ${digest}:`, err);
+            if (requestIdRef.current === requestId) {
+              const message = err instanceof Error ? err.message : 'Failed to load details';
+              setDetailErrors((prev) => {
+                const next = new Map(prev);
+                next.set(digest, message);
+                return next;
+              });
+            }
           },
         ).finally(() => {
           if (requestIdRef.current === requestId) {
@@ -181,6 +190,7 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
           repo={repoName}
           artifacts={artifacts}
           detailsMap={detailsMap}
+          detailErrors={detailErrors}
           failures={failures}
           loadingDetails={loadingDetails}
           totalTagsCount={totalTagsCount}

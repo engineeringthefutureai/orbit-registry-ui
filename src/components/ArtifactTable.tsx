@@ -28,6 +28,7 @@ interface ArtifactTableProps {
   repo: string;
   artifacts: Artifact[];
   detailsMap: Map<string, ArtifactDetails>;
+  detailErrors?: Map<string, string>;
   failures: TagFailure[];
   loadingDetails: boolean;
   totalTagsCount: number;
@@ -40,6 +41,7 @@ export function ArtifactTable({
   repo,
   artifacts,
   detailsMap,
+  detailErrors,
   failures,
   loadingDetails,
   totalTagsCount,
@@ -51,8 +53,10 @@ export function ArtifactTable({
   const [selectedArtifact, setSelectedArtifact] = useState<Artifact | null>(null);
   const [showFailuresModal, setShowFailuresModal] = useState(false);
 
-  // Sorting is enabled once every row has details
-  const allDetailsLoaded = artifacts.length > 0 && artifacts.every((a) => detailsMap.has(a.digest));
+  // Sorting is enabled once every row has either details or a settled error
+  const allDetailsLoaded =
+    artifacts.length > 0 &&
+    artifacts.every((a) => detailsMap.has(a.digest) || detailErrors?.has(a.digest));
 
   // Filter rows based on search query
   const filteredArtifacts = useMemo(() => {
@@ -262,6 +266,7 @@ export function ArtifactTable({
             ) : (
               sortedArtifacts.map((artifact) => {
                 const details = detailsMap.get(artifact.digest);
+                const detailError = detailErrors?.get(artifact.digest);
                 const pullByDigest = buildPullCommand(config.registryPublicUrl, repo, artifact.digest);
 
                 return (
@@ -278,6 +283,10 @@ export function ArtifactTable({
                         >
                           {formatRelativeTime(details.created)}
                         </span>
+                      ) : detailError ? (
+                        <span className="text-rose-400/90 text-[11px]" title={detailError}>
+                          unavailable
+                        </span>
                       ) : (
                         <div className="h-4 w-16 bg-slate-800/60 rounded animate-pulse" />
                       )}
@@ -288,6 +297,10 @@ export function ArtifactTable({
                       {details ? (
                         <span title={`${details.sizeBytes.toLocaleString()} bytes compressed`}>
                           {formatBytes(details.sizeBytes)}
+                        </span>
+                      ) : detailError ? (
+                        <span className="text-slate-500" title={detailError}>
+                          -
                         </span>
                       ) : (
                         <div className="h-4 w-12 bg-slate-800/60 rounded animate-pulse" />
@@ -343,6 +356,10 @@ export function ArtifactTable({
                             );
                           })}
                         </div>
+                      ) : detailError ? (
+                        <span className="text-slate-500 text-[11px]" title={detailError}>
+                          -
+                        </span>
                       ) : (
                         <div className="h-4 w-14 bg-slate-800/60 rounded animate-pulse" />
                       )}
