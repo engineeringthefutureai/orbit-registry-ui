@@ -32,11 +32,11 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [statusCode, setStatusCode] = useState<number | null>(null);
 
-  // Keep track of active fetch cancellation
-  const cancelRef = useRef(false);
+  // Keep track of the latest request so stale responses cannot overwrite newer state
+  const requestIdRef = useRef(0);
 
   const loadRepositoryData = useCallback(async () => {
-    cancelRef.current = false;
+    const requestId = ++requestIdRef.current;
     setLoadingListing(true);
     setLoadingDetails(false);
     setError(null);
@@ -49,7 +49,7 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
     try {
       // 1. Resolve tags to digest groups and failures
       const listing = await listArtifacts(repoName);
-      if (cancelRef.current) return;
+      if (requestIdRef.current !== requestId) return;
 
       const totalTags =
         listing.artifacts.reduce((acc, a) => acc + a.tags.length, 0) + listing.failures.length;
@@ -67,7 +67,7 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
           repoName,
           listing.artifacts,
           (details) => {
-            if (!cancelRef.current) {
+            if (requestIdRef.current === requestId) {
               setDetailsMap((prev) => {
                 const next = new Map(prev);
                 next.set(details.digest, details);
@@ -79,13 +79,13 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
             console.error(`Failed to load details for digest ${digest}:`, err);
           },
         ).finally(() => {
-          if (!cancelRef.current) {
+          if (requestIdRef.current === requestId) {
             setLoadingDetails(false);
           }
         });
       }
     } catch (err) {
-      if (cancelRef.current) return;
+      if (requestIdRef.current !== requestId) return;
       setLoadingListing(false);
       if (err instanceof RegistryError) {
         setStatusCode(err.status);
@@ -105,7 +105,7 @@ export function RepoPage({ repoName, onBack }: RepoPageProps) {
   useEffect(() => {
     loadRepositoryData();
     return () => {
-      cancelRef.current = true;
+      requestIdRef.current++;
     };
   }, [loadRepositoryData]);
 
